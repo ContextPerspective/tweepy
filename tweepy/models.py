@@ -1,5 +1,5 @@
 # Tweepy
-# Copyright 2009-2019 Joshua Roesslein
+# Copyright 2009-2020 Joshua Roesslein
 # See LICENSE for details.
 
 from __future__ import absolute_import
@@ -61,14 +61,18 @@ class Model(object):
         """
         results = ResultSet()
 
-        # Handle map parameter for statuses/lookup
-        if isinstance(json_list, dict) and 'id' in json_list:
-            for _id, obj in json_list['id'].items():
-                if obj:
-                    results.append(cls.parse(api, obj))
-                else:
-                    results.append(cls.parse(api, {'id': int(_id)}))
-            return results
+        if isinstance(json_list, dict):
+            # Handle map parameter for statuses/lookup
+            if 'id' in json_list:
+                for _id, obj in json_list['id'].items():
+                    if obj:
+                        results.append(cls.parse(api, obj))
+                    else:
+                        results.append(cls.parse(api, {'id': int(_id)}))
+                return results
+            # Handle premium search
+            if 'results' in json_list:
+                json_list = json_list['results']
 
         for obj in json_list:
             if obj:
@@ -174,14 +178,14 @@ class User(Model):
             results.append(cls.parse(api, obj))
         return results
 
-    def timeline(self, **kargs):
-        return self._api.user_timeline(user_id=self.id, **kargs)
+    def timeline(self, **kwargs):
+        return self._api.user_timeline(user_id=self.id, **kwargs)
 
-    def friends(self, **kargs):
-        return self._api.friends(user_id=self.id, **kargs)
+    def friends(self, **kwargs):
+        return self._api.friends(user_id=self.id, **kwargs)
 
-    def followers(self, **kargs):
-        return self._api.followers(user_id=self.id, **kargs)
+    def followers(self, **kwargs):
+        return self._api.followers(user_id=self.id, **kwargs)
 
     def follow(self):
         self._api.create_friendship(user_id=self.id)
@@ -191,25 +195,25 @@ class User(Model):
         self._api.destroy_friendship(user_id=self.id)
         self.following = False
 
-    def lists_memberships(self, *args, **kargs):
+    def lists_memberships(self, *args, **kwargs):
         return self._api.lists_memberships(user=self.screen_name,
                                            *args,
-                                           **kargs)
+                                           **kwargs)
 
-    def lists_subscriptions(self, *args, **kargs):
+    def lists_subscriptions(self, *args, **kwargs):
         return self._api.lists_subscriptions(user=self.screen_name,
                                              *args,
-                                             **kargs)
+                                             **kwargs)
 
-    def lists(self, *args, **kargs):
+    def lists(self, *args, **kwargs):
         return self._api.lists_all(user=self.screen_name,
                                    *args,
-                                   **kargs)
+                                   **kwargs)
 
-    def followers_ids(self, *args, **kargs):
+    def followers_ids(self, *args, **kwargs):
         return self._api.followers_ids(user_id=self.id,
                                        *args,
-                                       **kargs)
+                                       **kwargs)
 
     def __eq__(self, other):
         if isinstance(other, User):
@@ -233,6 +237,7 @@ class DirectMessage(Model):
         dm = cls(api)
         if "event" in json:
             json = json["event"]
+        setattr(dm, '_json', json)
         for k, v in json.items():
             setattr(dm, k, v)
         return dm
@@ -333,16 +338,16 @@ class List(Model):
             results.append(cls.parse(api, obj))
         return results
 
-    def update(self, **kargs):
-        return self._api.update_list(self.slug, **kargs)
+    def update(self, **kwargs):
+        return self._api.update_list(self.slug, **kwargs)
 
     def destroy(self):
         return self._api.destroy_list(self.slug)
 
-    def timeline(self, **kargs):
+    def timeline(self, **kwargs):
         return self._api.list_timeline(self.user.screen_name,
                                        self.slug,
-                                       **kargs)
+                                       **kwargs)
 
     def add_member(self, id):
         return self._api.add_list_member(self.slug, id)
@@ -350,10 +355,10 @@ class List(Model):
     def remove_member(self, id):
         return self._api.remove_list_member(self.slug, id)
 
-    def members(self, **kargs):
+    def members(self, **kwargs):
         return self._api.list_members(self.user.screen_name,
                                       self.slug,
-                                      **kargs)
+                                      **kwargs)
 
     def is_member(self, id):
         return self._api.is_list_member(self.user.screen_name,
@@ -366,10 +371,10 @@ class List(Model):
     def unsubscribe(self):
         return self._api.unsubscribe_list(self.user.screen_name, self.slug)
 
-    def subscribers(self, **kargs):
+    def subscribers(self, **kwargs):
         return self._api.list_subscribers(self.user.screen_name,
                                           self.slug,
-                                          **kargs)
+                                          **kwargs)
 
     def is_subscribed(self, id):
         return self._api.is_subscribed_list(self.user.screen_name,
@@ -399,6 +404,10 @@ class Relationship(Model):
             if k == 'connections':
                 setattr(result, 'is_following', 'following' in v)
                 setattr(result, 'is_followed_by', 'followed_by' in v)
+                setattr(result, 'is_muted', 'muting' in v)
+                setattr(result, 'is_blocked', 'blocking' in v)
+                setattr(result, 'is_following_requested', 'following_requested' in v)
+                setattr(result, 'no_relationship', 'none' in v)
             else:
                 setattr(result, k, v)
         return result
